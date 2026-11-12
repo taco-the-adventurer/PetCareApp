@@ -5,9 +5,12 @@ function createPet(ownerId, name, species, breed, age, image, callback) {
   connection.query(sql, [ownerId, name, species, breed, age, image], callback);
 }
 
-function getByOwner(ownerId, callback) {
+function getPetsByOwner(ownerId, callback) {
   const sql = 'SELECT * FROM pets WHERE owner_id = ?';
   connection.query(sql, [ownerId], callback);
 }
 
-module.exports = { createPet, getByOwner };
+module.exports = {
+  createPet,
+  getPetsByOwner
+};

@@ -1,6 +1,5 @@
-const MockProvider = require('../services/mockPaymentProvider');
-
-const services = require('../data/mockServices');
+  const services = require('../data/mockServices');
+  const MockProvider = require('../services/mockPaymentProvider');
 
 function preparePayment(req, res) {
   const service = services.find(
@@ -20,6 +19,8 @@ function preparePayment(req, res) {
   });
 }
 
+
+  
 async function createMockPayment(req, res) {
     const serviceId = Number(req.params.serviceId);
     const service = services.find(item => item.id === serviceId);
@@ -54,7 +55,7 @@ async function createMockPayment(req, res) {
  });
 }
 
- module.exports = {
+module.exports = {
   preparePayment,
   createMockPayment
 };
