@@ -7,5 +7,6 @@ router.get('/admin/dashboard', isAdmin, adminController.dashboard);
 router.get('/admin/users', isAdmin, adminController.listUsers);
 router.get('/admin/users/:id', isAdmin, adminController.viewUserDetails);
 router.get('/admin/users/delete/:id', isAdmin, adminController.deleteUser);
+router.get('/admin/bookings', isAdmin, adminController.bookingsDashboard);
 
 module.exports = router;

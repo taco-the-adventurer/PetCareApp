@@ -6,7 +6,7 @@ function isLoggedIn(req, res, next) {
 
 function isAdmin(req, res, next) {
   if (req.session.user && req.session.user.role === 'admin') return next();
-  res.send('Access Denied!');
+  res.redirect('/login');
 }
 
 module.exports = { isLoggedIn, isAdmin };

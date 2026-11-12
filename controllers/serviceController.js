@@ -96,11 +96,16 @@ function listBookings(req, res) {
       return res.status(500).send('Unable to load booking history.');
     }
 
-    res.render('bookings', {
-      bookings,
-      messages: req.flash('success'),
-      errors: req.flash('error'),
-      session: req.session
+    serviceBookingModel.getSpendingSummary(userId, (err2, summaryRows) => {
+      const summary = (!err2 && summaryRows.length) ? summaryRows[0] : null;
+
+      res.render('bookings', {
+        bookings,
+        summary,
+        messages: req.flash('success'),
+        errors: req.flash('error'),
+        session: req.session
+      });
     });
   });
 }

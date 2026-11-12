@@ -1,10 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Booking History</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <%- include('partials/head', { title: 'Booking History' }) %>
 </head>
 <body>
   <%- include('partials/navbar') %>
@@ -24,6 +21,36 @@
       <% for (let i = 0; i < errors.length; i++) { %>
         <div class="alert alert-danger" role="alert"><%= errors[i] %></div>
       <% } %>
+    <% } %>
+
+    <!-- Spending summary cards -->
+    <% if (summary && summary.total_bookings > 0) { %>
+    <div class="row g-3 mb-4">
+      <div class="col-sm-4">
+        <div class="card text-center shadow-sm h-100">
+          <div class="card-body">
+            <div class="fs-3 fw-bold text-primary"><%= summary.total_bookings %></div>
+            <div class="text-secondary small">Total Bookings</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="card text-center shadow-sm h-100">
+          <div class="card-body">
+            <div class="fs-3 fw-bold text-success">S$<%= Number(summary.total_spent).toFixed(2) %></div>
+            <div class="text-secondary small">Total Spent</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-4">
+        <div class="card text-center shadow-sm h-100">
+          <div class="card-body">
+            <div class="fs-3 fw-bold text-info"><%= summary.favourite_service || '—' %></div>
+            <div class="text-secondary small">Most Booked Service</div>
+          </div>
+        </div>
+      </div>
+    </div>
     <% } %>
 
     <% if (!bookings.length) { %>
@@ -67,6 +94,6 @@
     <% } %>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <%- include('partials/scripts') %>
 </body>
 </html>

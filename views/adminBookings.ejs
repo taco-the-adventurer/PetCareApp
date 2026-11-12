@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head', { title: 'All Bookings' }) %>
+</head>
+<body>
+  <%- include('partials/navbar') %>
+
+  <main class="container py-5">
+    <h1 class="h2 mb-4">Bookings Dashboard</h1>
+
+    <% if (messages && messages.length) { %>
+      <% for (let i = 0; i < messages.length; i++) { %>
+        <div class="alert alert-success"><%= messages[i] %></div>
+      <% } %>
+    <% } %>
+    <% if (errors && errors.length) { %>
+      <% for (let i = 0; i < errors.length; i++) { %>
+        <div class="alert alert-danger"><%= errors[i] %></div>
+      <% } %>
+    <% } %>
+
+    <!-- Summary cards -->
+    <div class="row g-3 mb-5">
+      <div class="col-sm-6 col-lg-3">
+        <div class="card text-center shadow-sm h-100">
+          <div class="card-body">
+            <div class="fs-2 fw-bold text-primary"><%= stats.summary.total_bookings %></div>
+            <div class="text-secondary small">Total Bookings</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="card text-center shadow-sm h-100">
+          <div class="card-body">
+            <div class="fs-2 fw-bold text-success">S$<%= Number(stats.summary.total_revenue).toFixed(2) %></div>
+            <div class="text-secondary small">Total Revenue</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="card text-center shadow-sm h-100">
+          <div class="card-body">
+            <div class="fs-2 fw-bold text-warning"><%= stats.summary.pending_count %></div>
+            <div class="text-secondary small">Pending</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <div class="card text-center shadow-sm h-100">
+          <div class="card-body">
+            <div class="fs-2 fw-bold text-secondary"><%= stats.summary.confirmed_count %></div>
+            <div class="text-secondary small">Confirmed</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Revenue by service -->
+    <h2 class="h5 mb-3">Revenue by Service</h2>
+    <div class="table-responsive mb-5">
+      <table class="table table-striped table-hover align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>Service</th>
+            <th class="text-center">Bookings</th>
+            <th class="text-end">Revenue</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!stats.revenueByService.length) { %>
+            <tr><td colspan="3" class="text-center text-secondary">No bookings yet.</td></tr>
+          <% } else { %>
+            <% for (let i = 0; i < stats.revenueByService.length; i++) { %>
+              <tr>
+                <td><%= stats.revenueByService[i].service_name %></td>
+                <td class="text-center"><%= stats.revenueByService[i].booking_count %></td>
+                <td class="text-end">S$<%= Number(stats.revenueByService[i].revenue).toFixed(2) %></td>
+              </tr>
+            <% } %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- All bookings table -->
+    <h2 class="h5 mb-3">All Bookings</h2>
+    <div class="table-responsive">
+      <table class="table table-striped table-hover align-middle">
+        <thead class="table-dark">
+          <tr>
+            <th>#</th>
+            <th>Date</th>
+            <th>Owner</th>
+            <th>Pet</th>
+            <th>Service</th>
+            <th>Price</th>
+            <th>Booking</th>
+            <th>Payment</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!bookings.length) { %>
+            <tr><td colspan="8" class="text-center text-secondary">No bookings yet.</td></tr>
+          <% } else { %>
+            <% for (let i = 0; i < bookings.length; i++) { %>
+              <tr>
+                <td><%= bookings[i].booking_id %></td>
+                <td><%= bookings[i].booking_date %></td>
+                <td><%= bookings[i].owner_name %> <span class="text-secondary small">(<%= bookings[i].username %>)</span></td>
+                <td><%= bookings[i].pet_name %></td>
+                <td><%= bookings[i].service_name %></td>
+                <td>S$<%= Number(bookings[i].booked_price).toFixed(2) %></td>
+                <td><span class="badge text-bg-secondary"><%= bookings[i].booking_status %></span></td>
+                <td>
+                  <% if (bookings[i].payment_status) { %>
+                    <span class="badge text-bg-secondary"><%= bookings[i].payment_status %></span>
+                  <% } else { %>
+                    <span class="text-secondary small">No record</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% } %>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <%- include('partials/scripts') %>
+</body>
+</html>
