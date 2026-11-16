@@ -286,14 +286,18 @@ checks have already been executed.
 
 Record your own actual results:
 
+Executed 16/11/2026 against the local app (node app.js) using curl with
+session cookies and read-only SQL snapshots of service_bookings/payments
+before and after each step.
+
 | Check | Actual result and evidence | Pass / Fail |
 | --- | --- | --- |
-| AC1 | Not run | Not assessed |
-| AC2 | Not run | Not assessed |
-| AC3 | Not run | Not assessed |
-| AC4 | Not run | Not assessed |
-| AC5 | Not run | Not assessed |
-| AC6 | Not run | Not assessed |
-| AC7 | Not run | Not assessed |
-| AC8 | Not run | Not assessed |
-| Regression | Not run | Not assessed |
+| AC1 | clara booked Mira + Basic Bath (2026-11-20): 302 to /bookings with the exact success flash; booking#4 + payment#3 created, booked_price 25.00 taken from the database, both statuses pending | Pass |
+| AC2 | amy booked Hammy + Nail Trimming with today's date (2026-11-16): accepted, booking#5 created; future date accepted in AC1 | Pass |
+| AC3 | Past date 2026-11-01, impossible 2026-02-30, and non-numeric petId each redirected to /services with the exact validation flash; row counts unchanged (no booking or payment written) | Pass |
+| AC4 | clara submitting amy's pet (petId 2): redirect with the unavailable pet/service flash; no rows written | Pass |
+| AC5 | Unknown serviceId 999: rejected with the unavailable flash; no rows written. Inactive-service variant not run (needs is_active toggled; exercises the same SQL condition as unknown ID) | Pass (inactive variant not run) |
+| AC6 | Forced booking/payment/commit failure not simulated (needs a prepared failure setup per the L08 worksheet). Indirect evidence only: AUTO_INCREMENT gap at booking id 2 from earlier testing is consistent with rollback behaviour | Not run / Not assessed |
+| AC7 | clara's /bookings showed 3 Mira rows and 0 Hammy; amy's showed 1 Hammy row and 0 Mira | Pass |
+| AC8 | Signed out, all three routes redirect 302 to /login: GET /services, POST /services/book, GET /bookings | Pass |
+| Regression | Login as clara redirects to /journals (302) and /journals renders HTTP 200 with the session active | Pass |
