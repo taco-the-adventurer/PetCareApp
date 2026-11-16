@@ -28,13 +28,24 @@ async function createMockPayment(req, res) {
     if (!service) {
       return res.status(404).json({ error: 'Service not found' });
    }
- 
+
+   // Only the three provider outcomes are valid test inputs
+   // (Specs/mock-payment.md). An omitted testStatus still defaults to
+   // PENDING inside the provider.
+   const testStatus = req.body?.testStatus;
+   if (testStatus !== undefined &&
+       !['APPROVED', 'PENDING', 'DECLINED'].includes(testStatus)) {
+     return res.status(400).json({
+       error: 'Invalid testStatus. Use APPROVED, PENDING or DECLINED.'
+     });
+   }
+
    const paymentRequest = {
      amount: service.price,
      currency: 'sgd',
      merchantReference: 'SERVICE-' + service.id,
      description: service.name,
-     testStatus: req.body?.testStatus
+     testStatus: testStatus
    };
  
    // call mock provider
