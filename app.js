@@ -12,8 +12,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
+// Set SESSION_SECRET in the environment for real deployments; the fallback
+// keeps a clean clone runnable for marking without extra setup.
 app.use(session({
-  secret: 'secret123',
+  secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
   resave: false,
   saveUninitialized: true
 }));
