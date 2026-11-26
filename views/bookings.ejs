@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <%- include('partials/head', { title: 'Booking History' }) %>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Booking History</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
   <%- include('partials/navbar') %>
@@ -23,36 +26,6 @@
       <% } %>
     <% } %>
 
-    <!-- Spending summary cards -->
-    <% if (summary && summary.total_bookings > 0) { %>
-    <div class="row g-3 mb-4">
-      <div class="col-sm-4">
-        <div class="card text-center shadow-sm h-100">
-          <div class="card-body">
-            <div class="fs-3 fw-bold text-primary"><%= summary.total_bookings %></div>
-            <div class="text-secondary small">Total Bookings</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-sm-4">
-        <div class="card text-center shadow-sm h-100">
-          <div class="card-body">
-            <div class="fs-3 fw-bold text-success">S$<%= Number(summary.total_spent).toFixed(2) %></div>
-            <div class="text-secondary small">Total Spent</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-sm-4">
-        <div class="card text-center shadow-sm h-100">
-          <div class="card-body">
-            <div class="fs-3 fw-bold text-info"><%= summary.favourite_service || '—' %></div>
-            <div class="text-secondary small">Most Booked Service</div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <% } %>
-
     <% if (!bookings.length) { %>
       <div class="alert alert-info">You have no bookings yet.</div>
     <% } else { %>
@@ -67,6 +40,7 @@
               <th scope="col">Price</th>
               <th scope="col">Booking Status</th>
               <th scope="col">Payment Status</th>
+              <th scope="col">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -85,6 +59,21 @@
                     <span class="text-secondary">No payment record</span>
                   <% } %>
                 </td>
+                <td>
+                  <% if (String(bookings[i].booking_status).toLowerCase() === 'pending') { %>
+                    <form action="/payments/mock/<%= bookings[i].booking_id %>" method="POST" class="d-flex flex-wrap gap-2">
+                      <select name="testStatus" class="form-select form-select-sm" aria-label="Simulated payment result">
+                        <option value="RANDOM">Random outcome</option>
+                        <option value="APPROVED">Approved</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="DECLINED">Declined</option>
+                      </select>
+                      <button type="submit" class="btn btn-sm btn-primary text-nowrap">Process mock payment</button>
+                    </form>
+                  <% } else { %>
+                    <span class="text-secondary">Processed</span>
+                  <% } %>
+                </td>
               </tr>
             <% } %>
           </tbody>
@@ -94,6 +83,6 @@
     <% } %>
   </main>
 
-  <%- include('partials/scripts') %>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
