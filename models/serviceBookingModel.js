@@ -1,56 +1,116 @@
-const pool = require('../config/db');
+const connection = require('../config/db');
 
-function createPendingBooking(ownerId, petId, serviceId, bookingDate, callback) {
-  pool.getConnection((connErr, conn) => {
-    if (connErr) return callback(connErr);
+function getBookingsByOwner(ownerId, callback) {
+  const sql = `
+    SELECT
+      sb.id AS booking_id,
+      p.name AS pet_name,
+      s.name AS service_name,
+      DATE_FORMAT(sb.booking_date, '%Y-%m-%d') AS booking_date,
+      sb.booked_price,
+      sb.booking_status,
+      pay.payment_status,
+      pay.payment_reference,
+      sb.created_at
+    FROM service_bookings AS sb
+    JOIN pets AS p ON p.id = sb.pet_id
+    JOIN services AS s ON s.id = sb.service_id
+    LEFT JOIN payments AS pay ON pay.booking_id = sb.id
+    WHERE p.owner_id = ?
+    ORDER BY sb.created_at DESC, sb.id DESC
+  `;
 
-    conn.beginTransaction((txErr) => {
-      if (txErr) {
-        conn.release();
-        return callback(txErr);
+  connection.query(sql, [ownerId], callback);
+}
+
+function getBookingForPayment(bookingId, ownerId, callback) {
+  const sql = `
+    SELECT sb.id, sb.booked_price, sb.booking_status, s.name AS service_name
+    FROM service_bookings AS sb
+    JOIN pets AS p ON p.id = sb.pet_id
+    JOIN services AS s ON s.id = sb.service_id
+    WHERE sb.id = ? AND p.owner_id = ?
+  `;
+
+  connection.query(sql, [bookingId, ownerId], (error, rows) => {
+    if (error) return callback(error);
+    callback(null, rows[0] || null);
+  });
+}
+
+function recordPaymentResult(ownerId, bookingId, paymentStatus, paymentReference, bookingStatus, callback) {
+  connection.getConnection((connectionError, dbConnection) => {
+    if (connectionError) return callback(connectionError);
+
+    dbConnection.beginTransaction(transactionError => {
+      if (transactionError) {
+        dbConnection.release();
+        return callback(transactionError);
       }
 
-      // Insert booking only when the pet belongs to ownerId and the service is active.
-      // booked_price is taken from the database, not from the request.
+      const rollback = (error, result) => {
+        dbConnection.rollback(() => {
+          dbConnection.release();
+          callback(error, result);
+        });
+      };
+
       const bookingSql = `
-        INSERT INTO service_bookings (pet_id, service_id, booking_date, booked_price, booking_status)
-        SELECT p.id, s.id, ?, s.price, 'pending'
-        FROM pets AS p
-        JOIN services AS s ON s.id = ? AND s.is_active = 1
-        WHERE p.id = ? AND p.owner_id = ?
+        SELECT sb.id, sb.booked_price, sb.booking_status
+        FROM service_bookings AS sb
+        JOIN pets AS p ON p.id = sb.pet_id
+        WHERE sb.id = ? AND p.owner_id = ?
+        FOR UPDATE
       `;
 
-      conn.query(bookingSql, [bookingDate, serviceId, petId, ownerId], (bookErr, bookResult) => {
-        if (bookErr) {
-          return conn.rollback(() => { conn.release(); callback(bookErr); });
+      dbConnection.query(bookingSql, [bookingId, ownerId], (bookingError, bookingRows) => {
+        if (bookingError) return rollback(bookingError);
+        if (!bookingRows.length || bookingRows[0].booking_status !== 'pending') {
+          return rollback(null, null);
         }
 
-        if (bookResult.affectedRows === 0) {
-          // Pet not owned or service inactive/unknown
-          return conn.rollback(() => { conn.release(); callback(null, null); });
-        }
-
-        const bookingId = bookResult.insertId;
-
-        // Payment amount comes from the booking row just inserted, not a second catalogue lookup.
-        const paymentSql = `
-          INSERT INTO payments (booking_id, amount, payment_status)
-          SELECT id, booked_price, 'pending'
-          FROM service_bookings
-          WHERE id = ?
+        const booking = bookingRows[0];
+        const amount = booking.booked_price;
+        const existingPaymentSql = `
+          SELECT id
+          FROM payments
+          WHERE booking_id = ?
+          ORDER BY id DESC
+          LIMIT 1
+          FOR UPDATE
         `;
 
-        conn.query(paymentSql, [bookingId], (payErr, payResult) => {
-          if (payErr) {
-            return conn.rollback(() => { conn.release(); callback(payErr); });
-          }
+        dbConnection.query(existingPaymentSql, [bookingId], (paymentLookupError, paymentRows) => {
+          if (paymentLookupError) return rollback(paymentLookupError);
 
-          conn.commit((commitErr) => {
-            if (commitErr) {
-              return conn.rollback(() => { conn.release(); callback(commitErr); });
-            }
-            conn.release();
-            callback(null, { bookingId, paymentId: payResult.insertId });
+          const savePayment = paymentRows.length
+            ? dbConnection.query.bind(dbConnection,
+              'UPDATE payments SET amount = ?, payment_status = ?, payment_reference = ? WHERE id = ?',
+              [amount, paymentStatus, paymentReference, paymentRows[0].id])
+            : dbConnection.query.bind(dbConnection,
+              'INSERT INTO payments (booking_id, amount, payment_status, payment_reference) VALUES (?, ?, ?, ?)',
+              [bookingId, amount, paymentStatus, paymentReference]);
+
+          savePayment((saveError, paymentResult) => {
+            if (saveError) return rollback(saveError);
+
+            dbConnection.query(
+              'UPDATE service_bookings SET booking_status = ? WHERE id = ?',
+              [bookingStatus, bookingId],
+              (updateError) => {
+                if (updateError) return rollback(updateError);
+
+                dbConnection.commit(commitError => {
+                  if (commitError) return rollback(commitError);
+
+                  dbConnection.release();
+                  callback(null, {
+                    amount,
+                    paymentId: paymentRows.length ? paymentRows[0].id : paymentResult.insertId
+                  });
+                });
+              }
+            );
           });
         });
       });
@@ -58,107 +118,65 @@ function createPendingBooking(ownerId, petId, serviceId, bookingDate, callback) 
   });
 }
 
-function getBookingsByOwner(ownerId, callback) {
-  const sql = `
-    SELECT
-      sb.id                                        AS booking_id,
-      DATE_FORMAT(sb.booking_date, '%Y-%m-%d')     AS booking_date,
-      p.name                                       AS pet_name,
-      s.name                                       AS service_name,
-      sb.booked_price,
-      sb.booking_status,
-      pay.payment_status,
-      pay.payment_reference,
-      sb.created_at
-    FROM service_bookings AS sb
-    JOIN pets    AS p   ON p.id  = sb.pet_id
-    JOIN services AS s  ON s.id  = sb.service_id
-    LEFT JOIN payments AS pay ON pay.booking_id = sb.id
-    WHERE p.owner_id = ?
-    ORDER BY sb.created_at DESC, sb.id DESC
-  `;
-  pool.query(sql, [ownerId], callback);
-}
+function createPendingBooking(ownerId, petId, serviceId, bookingDate, callback) {
+  connection.getConnection((connectionError, dbConnection) => {
+    if (connectionError) return callback(connectionError);
 
-function getAllBookings(callback) {
-  const sql = `
-    SELECT
-      sb.id                                        AS booking_id,
-      DATE_FORMAT(sb.booking_date, '%Y-%m-%d')     AS booking_date,
-      u.name                                       AS owner_name,
-      u.username,
-      p.name                                       AS pet_name,
-      s.name                                       AS service_name,
-      sb.booked_price,
-      sb.booking_status,
-      pay.payment_status,
-      sb.created_at
-    FROM service_bookings AS sb
-    JOIN pets     AS p   ON p.id  = sb.pet_id
-    JOIN users    AS u   ON u.id  = p.owner_id
-    JOIN services AS s   ON s.id  = sb.service_id
-    LEFT JOIN payments AS pay ON pay.booking_id = sb.id
-    ORDER BY sb.created_at DESC, sb.id DESC
-  `;
-  pool.query(sql, callback);
-}
+    dbConnection.beginTransaction((transactionError) => {
+      if (transactionError) {
+        dbConnection.release();
+        return callback(transactionError);
+      }
 
-function getBookingStats(callback) {
-  const summarySql = `
-    SELECT
-      COUNT(*)                                                              AS total_bookings,
-      COALESCE(SUM(sb.booked_price), 0)                                    AS total_revenue,
-      SUM(CASE WHEN sb.booking_status = 'pending'   THEN 1 ELSE 0 END)    AS pending_count,
-      SUM(CASE WHEN sb.booking_status = 'confirmed' THEN 1 ELSE 0 END)    AS confirmed_count,
-      SUM(CASE WHEN sb.booking_status = 'cancelled' THEN 1 ELSE 0 END)    AS cancelled_count
-    FROM service_bookings AS sb
-  `;
-  pool.query(summarySql, (err, summaryRows) => {
-    if (err) return callback(err);
+      const rollback = (error, result) => {
+        dbConnection.rollback(() => {
+          dbConnection.release();
+          callback(error, result);
+        });
+      };
 
-    const revenueSql = `
-      SELECT
-        s.name                             AS service_name,
-        COUNT(*)                           AS booking_count,
-        COALESCE(SUM(sb.booked_price), 0)  AS revenue
-      FROM service_bookings AS sb
-      JOIN services AS s ON s.id = sb.service_id
-      GROUP BY s.id, s.name
-      ORDER BY revenue DESC
-    `;
-    pool.query(revenueSql, (err2, revenueRows) => {
-      if (err2) return callback(err2);
-      callback(null, { summary: summaryRows[0], revenueByService: revenueRows });
+      const bookingSql = `
+        INSERT INTO service_bookings
+          (pet_id, service_id, booking_status, booked_price, booking_date)
+        SELECT p.id, s.id, 'pending', s.price, ?
+        FROM pets AS p
+        JOIN services AS s ON s.id = ?
+        WHERE p.id = ? AND p.owner_id = ? AND s.is_active = 1
+      `;
+
+      dbConnection.query(bookingSql, [bookingDate, serviceId, petId, ownerId], (bookingError, bookingResult) => {
+        if (bookingError) return rollback(bookingError);
+        if (bookingResult.affectedRows !== 1) return rollback(null, null);
+
+        const bookingId = bookingResult.insertId;
+        const paymentSql = `
+          INSERT INTO payments (booking_id, amount, payment_status)
+          SELECT id, booked_price, 'pending'
+          FROM service_bookings
+          WHERE id = ?
+        `;
+
+        dbConnection.query(paymentSql, [bookingId], (paymentError, paymentResult) => {
+          if (paymentError) return rollback(paymentError);
+
+          dbConnection.commit((commitError) => {
+            if (commitError) return rollback(commitError);
+
+            dbConnection.release();
+            callback(null, {
+              bookingId,
+              paymentId: paymentResult.insertId
+            });
+          });
+        });
+      });
     });
   });
 }
 
-function getSpendingSummary(ownerId, callback) {
-  const sql = `
-    SELECT
-      COUNT(*)                           AS total_bookings,
-      COALESCE(SUM(sb.booked_price), 0)  AS total_spent,
-      (
-        SELECT s2.name
-        FROM service_bookings AS sb2
-        JOIN services AS s2 ON s2.id = sb2.service_id
-        JOIN pets     AS p2 ON p2.id  = sb2.pet_id
-        WHERE p2.owner_id = ?
-        GROUP BY s2.id
-        ORDER BY COUNT(*) DESC
-        LIMIT 1
-      ) AS favourite_service
-    FROM service_bookings AS sb
-    JOIN pets AS p ON p.id = sb.pet_id
-    WHERE p.owner_id = ?
-  `;
-  pool.query(sql, [ownerId, ownerId], callback);
-}
-
 module.exports = {
-  createPendingBooking,
   getBookingsByOwner,
-  getAllBookings,
-  getBookingStats,
-  getSpendingSummary
+  getBookingForPayment,
+  recordPaymentResult,
+  createPendingBooking
 };
