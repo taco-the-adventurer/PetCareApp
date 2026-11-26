@@ -63,7 +63,6 @@ function login(req, res) {
 
     if (results.length > 0) {
       req.session.user = results[0];
-      req.flash('success', 'Login successful!');
       if (results[0].role === 'admin') {
         res.redirect('/admin/dashboard');
       } else {
